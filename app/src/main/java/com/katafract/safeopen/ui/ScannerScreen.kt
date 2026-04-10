@@ -186,7 +186,7 @@ fun ScannerScreen(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(16.dp),
-            containerColor = MaterialTheme.colorScheme.Primary
+            containerColor = MaterialTheme.colorScheme.primary
         ) {
             Icon(
                 imageVector = Icons.Default.History,
