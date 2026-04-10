@@ -1,4 +1,4 @@
-name: Release SafeOpen
+name: Release
 
 on:
   push:
@@ -6,61 +6,41 @@ on:
       - 'v*'
 
 jobs:
-  build:
+  build-and-upload:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: gradle
 
       - name: Decode keystore
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > /tmp/safeopen.keystore
-          echo "KEYSTORE_PATH=/tmp/safeopen.keystore" >> $GITHUB_ENV
+          mkdir -p keystore
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore/safeopen-release.p12
 
-      - name: Set keystore env vars
-        run: |
-          echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
-          echo "KEYSTORE_ALIAS=${{ secrets.KEYSTORE_ALIAS }}" >> $GITHUB_ENV
-          echo "KEYSTORE_KEY_PASSWORD=${{ secrets.KEYSTORE_KEY_PASSWORD }}" >> $GITHUB_ENV
-
-      - name: Extract version
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          VERSION_CODE=$(date +%s | cut -c1-10)
-          echo "VERSION_NAME=$VERSION" >> $GITHUB_ENV
-          echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_ENV
-
-      - name: Build release bundle
-        run: |
-          cd /home/runner/work/safeopen-android/safeopen-android
-          ./gradlew bundleRelease --stacktrace
-
-      - name: Build release APK
-        run: |
-          cd /home/runner/work/safeopen-android/safeopen-android
-          ./gradlew assembleRelease --stacktrace
-
-      - name: Upload to Google Play
-        uses: r0adkll/upload-google-play@v1.1.2
-        with:
-          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT }}
-          packageName: com.katafract.safeopen
-          releaseFiles: 'app/build/outputs/bundle/release/*.aab'
-          track: internal
-          status: draft
-
-      - name: Upload release artifacts
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            app/build/outputs/apk/release/*.apk
-            app/build/outputs/bundle/release/*.aab
-          draft: true
+      - name: Build release AAB
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS:         ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD:      ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew bundleRelease --no-daemon
+
+      - name: Upload to Play — internal track
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName:                 com.katafract.safeopen
+          releaseFiles:                app/build/outputs/bundle/release/*.aab
+          track:                       internal
+          status:                      draft
+
+      - name: Clean up keystore
+        if: always()
+        run: rm -f keystore/safeopen-release.p12
