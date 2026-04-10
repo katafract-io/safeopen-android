@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SafeOpen</string>
+    <string name="scanner_title">SafeOpen</string>
+    <string name="scanner_paste">Paste Clipboard</string>
+    <string name="scanner_history">History</string>
+    <string name="result_title">Inspection Result</string>
+    <string name="result_open">Open</string>
+    <string name="result_block">Block</string>
+    <string name="result_caution">Caution</string>
+    <string name="result_safe">Safe</string>
+    <string name="result_dangerous">Dangerous</string>
+    <string name="result_unknown">Unknown</string>
+    <string name="result_risk_factors">Risk Factors</string>
+    <string name="result_redirect_chain">Redirect Chain</string>
+    <string name="result_final_url">Final URL</string>
+    <string name="history_title">History</string>
+    <string name="history_empty">No history yet.\nStart by scanning a QR code or pasting a link.</string>
+    <string name="history_clear">Clear history</string>
+    <string name="action_re_inspect">Re-Inspect</string>
+    <string name="action_share">Share</string>
+    <string name="action_open_safely">Open Safely</string>
+</resources>

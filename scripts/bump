@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# SafeOpen version bump script
+
+set -e
+
+# Get current version from git tag
+CURRENT_VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+CURRENT_VERSION=${CURRENT_VERSION#v}
+
+# Parse version components
+IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+PATCH=$((PATCH + 1))
+
+NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+TAG="v$NEW_VERSION"
+
+echo "Bumping version: $CURRENT_VERSION → $NEW_VERSION"
+
+# Create git tag
+git tag -a "$TAG" -m "SafeOpen $NEW_VERSION"
+
+echo "Created tag: $TAG"
+echo "Push with: git push origin $TAG"
