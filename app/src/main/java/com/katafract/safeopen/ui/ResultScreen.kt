@@ -51,7 +51,7 @@ fun ResultScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(scrollState)
-            .background(MaterialTheme.colorScheme.Background)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         // Header
         Box(
@@ -116,7 +116,7 @@ fun ResultScreen(
         Text(
             result.payload.type.toString(),
             fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.OnSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .align(Alignment.CenterHorizontally)
                 .padding(bottom = 20.dp)
@@ -128,14 +128,14 @@ fun ResultScreen(
                 result.title,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.OnSurface,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
             Text(
                 result.summary,
                 fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.OnSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
         }
@@ -154,7 +154,7 @@ fun ResultScreen(
                     Text(
                         "• $factor",
                         fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.OnSurfaceVariant,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(vertical = 4.dp)
                     )
                 }
@@ -177,7 +177,7 @@ fun ResultScreen(
                     Text(
                         hop,
                         fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.OnSurfaceVariant,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(vertical = 4.dp)
                     )
                 }
@@ -199,7 +199,7 @@ fun ResultScreen(
                 Text(
                     result.finalUrl,
                     fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.Primary,
+                    color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(bottom = 20.dp)
                 )
             }

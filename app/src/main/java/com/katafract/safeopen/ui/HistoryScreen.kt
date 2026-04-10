@@ -45,7 +45,7 @@ fun HistoryScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.Background)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         // Header
         Row(
@@ -85,7 +85,7 @@ fun HistoryScreen(
                 Text(
                     "No history yet.\nStart by scanning a QR code or pasting a link.",
                     fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.OnSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.align(Alignment.Center)
                 )
             }
@@ -119,7 +119,7 @@ private fun HistoryItem(
         modifier = modifier
             .fillMaxWidth()
             .background(
-                color = MaterialTheme.colorScheme.SurfaceVariant,
+                color = MaterialTheme.colorScheme.surfaceVariant,
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
             )
             .clickable(onClick = onClick)
@@ -165,13 +165,13 @@ private fun HistoryItem(
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.OnSurface
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Text(
                 text = "${result.payload.type} • ${formatTime(result.inspectedAt)}",
                 fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.OnSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp)
             )
         }
