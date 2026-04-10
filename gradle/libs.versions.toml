@@ -48,7 +48,7 @@ gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
 
 # BouncyCastle
-bouncycastle-bcprov = { group = "org.bouncycastle", name = "bcprov-jdk15on", version.ref = "bouncycastle" }
+bouncycastle-bcprov = { group = "org.bouncycastle", name = "bcprov-jdk18on", version.ref = "bouncycastle" }
 
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }
