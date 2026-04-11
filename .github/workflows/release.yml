@@ -20,27 +20,49 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
+      - name: Fetch secrets from Infisical
+        env:
+          INFISICAL_CLIENT_ID:     ${{ secrets.INFISICAL_CLIENT_ID }}
+          INFISICAL_CLIENT_SECRET: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+        run: |
+          TOKEN=$(curl -sS --fail -X POST https://secrets.katafract.io/api/v1/auth/universal-auth/login \
+            -H "Content-Type: application/json" \
+            -d "{\"clientId\":\"$INFISICAL_CLIENT_ID\",\"clientSecret\":\"$INFISICAL_CLIENT_SECRET\"}" \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["accessToken"])')
+
+          fetch() {
+            curl -sS --fail \
+              "https://secrets.katafract.io/api/v3/secrets/raw/$1?environment=prod&secretPath=$2" \
+              -H "Authorization: Bearer $TOKEN" \
+              | python3 -c 'import json,sys; print(json.load(sys.stdin)["secret"]["secretValue"])'
+          }
+          fetch SAFEOPEN_ANDROID_KEYSTORE_B64      /android > /tmp/ks.b64
+          fetch SAFEOPEN_ANDROID_KEYSTORE_PASSWORD /android > /tmp/ks_pass.txt
+          fetch SAFEOPEN_ANDROID_KEY_ALIAS         /android > /tmp/key_alias.txt
+          fetch SAFEOPEN_ANDROID_KEY_PASSWORD      /android > /tmp/key_pass.txt
+          fetch PLAY_SERVICE_ACCOUNT_JSON          /        > /tmp/play_sa.json
+
       - name: Decode keystore
         run: |
           mkdir -p keystore
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore/safeopen-release.p12
+          base64 -d /tmp/ks.b64 > keystore/safeopen-release.p12
 
       - name: Build release AAB
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS:         ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD:      ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew bundleRelease --no-daemon
+        run: |
+          export KEYSTORE_PASSWORD=$(cat /tmp/ks_pass.txt)
+          export KEY_ALIAS=$(cat /tmp/key_alias.txt)
+          export KEY_PASSWORD=$(cat /tmp/key_pass.txt)
+          ./gradlew bundleRelease --no-daemon -PversionCode=${{ github.run_number }}
 
       - name: Upload to Play — internal track
         uses: r0adkll/upload-google-play@v1
         with:
-          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName:                 com.katafract.safeopen
-          releaseFiles:                app/build/outputs/bundle/release/*.aab
-          track:                       internal
-          status:                      draft
+          serviceAccountJson: /tmp/play_sa.json
+          packageName:        com.katafract.safeopen
+          releaseFiles:       app/build/outputs/bundle/release/*.aab
+          track:              internal
+          status:             draft
 
-      - name: Clean up keystore
+      - name: Clean up secrets
         if: always()
-        run: rm -f keystore/safeopen-release.p12
+        run: rm -f keystore/safeopen-release.p12 /tmp/ks.b64 /tmp/ks_pass.txt /tmp/key_alias.txt /tmp/key_pass.txt /tmp/play_sa.json
