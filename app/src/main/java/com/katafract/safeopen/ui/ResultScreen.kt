@@ -1,6 +1,8 @@
 package com.katafract.safeopen.ui
 
 import android.content.Intent
+import android.content.ClipboardManager
+import android.content.Context
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -13,15 +15,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Chip
+import androidx.compose.material3.ChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -33,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.katafract.safeopen.models.InspectionResult
@@ -55,14 +62,15 @@ fun ResultScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         // Header
-        Box(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(
                 onClick = onNavigateBack,
-                modifier = Modifier.align(Alignment.TopStart)
+                modifier = Modifier.size(40.dp)
             ) {
                 Icon(Icons.Default.Close, contentDescription = "Back")
             }
@@ -71,7 +79,9 @@ fun ResultScreen(
                 "Inspection Result",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.align(Alignment.TopCenter)
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 8.dp)
             )
         }
 
@@ -137,26 +147,72 @@ fun ResultScreen(
                 result.summary,
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 16.dp)
+                modifier = Modifier.padding(bottom = 16.dp),
+                lineHeight = 1.5.sp
             )
         }
 
-        // Risk factors
+        // Risk factors / threat signals
         if (result.riskFactors.isNotEmpty()) {
             Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                 Text(
-                    "Risk Factors",
+                    "Threat Signals",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        result.riskFactors.forEach { factor ->
+                            Chip(
+                                onClick = { },
+                                label = { Text(factor, fontSize = 11.sp) },
+                                modifier = Modifier.padding(vertical = 4.dp),
+                                colors = ChipDefaults.chipColors(
+                                    containerColor = when {
+                                        result.riskLevel == RiskLevel.HIGH -> Color(0xFFEF4444).copy(alpha = 0.1f)
+                                        result.riskLevel == RiskLevel.CAUTION -> Color(0xFFF59E0B).copy(alpha = 0.1f)
+                                        else -> MaterialTheme.colorScheme.surfaceVariant
+                                    }
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Original value
+        if (result.payload.rawValue != result.finalUrl) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                Text(
+                    "Original Input",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
 
-                result.riskFactors.forEach { factor ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            MaterialTheme.colorScheme.surfaceVariant,
+                            RoundedCornerShape(8.dp)
+                        )
+                        .padding(12.dp)
+                ) {
                     Text(
-                        "• $factor",
+                        result.payload.rawValue,
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 4.dp)
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
@@ -168,19 +224,31 @@ fun ResultScreen(
         if (result.redirectHops.isNotEmpty()) {
             Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                 Text(
-                    "Redirect Chain",
+                    "Redirect Chain (${result.redirectHops.size})",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
 
                 result.redirectHops.forEach { hop ->
-                    Text(
-                        hop,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                RoundedCornerShape(4.dp)
+                            )
+                            .padding(8.dp)
+                            .padding(bottom = 4.dp)
+                    ) {
+                        Text(
+                            hop,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
 
                 Text("", modifier = Modifier.padding(bottom = 16.dp))
@@ -197,16 +265,29 @@ fun ResultScreen(
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
 
-                Text(
-                    result.finalUrl,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(bottom = 20.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            MaterialTheme.colorScheme.surfaceVariant,
+                            RoundedCornerShape(8.dp)
+                        )
+                        .padding(12.dp)
+                ) {
+                    Text(
+                        result.finalUrl,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Text("", modifier = Modifier.padding(bottom = 16.dp))
             }
         }
 
-        // Action buttons
+        // Primary actions
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -228,13 +309,11 @@ fun ResultScreen(
             }
 
             // Open button (conditional)
-            if (result.canOpenSafely) {
+            if (result.canOpenSafely && result.finalUrl != null) {
                 Button(
                     onClick = {
-                        if (result.finalUrl != null) {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(result.finalUrl))
-                            context.startActivity(intent)
-                        }
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(result.finalUrl))
+                        context.startActivity(intent)
                     },
                     modifier = Modifier
                         .weight(1f)
@@ -257,19 +336,24 @@ fun ResultScreen(
             horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
         ) {
             OutlinedButton(
-                onClick = { onReInspect(result) },
+                onClick = {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    val clip = android.content.ClipData.newPlainText("url", result.finalUrl ?: result.payload.rawValue)
+                    clipboard.setPrimaryClip(clip)
+                },
                 modifier = Modifier
                     .weight(1f)
                     .height(40.dp)
             ) {
-                Text("Re-Inspect")
+                Icon(Icons.Default.ContentCopy, contentDescription = "Copy", modifier = Modifier.padding(end = 4.dp))
+                Text("Copy")
             }
 
             OutlinedButton(
                 onClick = {
                     val shareIntent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, result.finalUrl ?: result.payload.normalizedValue)
+                        putExtra(Intent.EXTRA_TEXT, result.finalUrl ?: result.payload.rawValue)
                     }
                     context.startActivity(Intent.createChooser(shareIntent, "Share"))
                 },
@@ -282,7 +366,18 @@ fun ResultScreen(
             }
         }
 
+        // Re-inspect button
+        OutlinedButton(
+            onClick = { onReInspect(result) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(40.dp)
+                .padding(horizontal = 16.dp)
+                .padding(top = 8.dp)
+        ) {
+            Text("Scan Another")
+        }
+
         Box(modifier = Modifier.padding(bottom = 32.dp))
     }
 }
-

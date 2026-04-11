@@ -11,6 +11,8 @@ okhttp = "4.12.0"
 gson = "2.10.1"
 securityCrypto = "1.1.0-alpha06"
 bouncycastle = "1.78.1"
+room = "2.6.1"
+billingClient = "7.1.1"
 junit = "4.13.2"
 junitExt = "1.1.5"
 espressoCore = "3.5.1"
@@ -50,6 +52,14 @@ androidx-security-crypto = { group = "androidx.security", name = "security-crypt
 
 # BouncyCastle
 bouncycastle-bcprov = { group = "org.bouncycastle", name = "bcprov-jdk18on", version.ref = "bouncycastle" }
+
+# Room Database
+androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
+androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+
+# Google Play Billing
+google-billing-client = { group = "com.android.billingclient", name = "billing-ktx", version.ref = "billingClient" }
 
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }

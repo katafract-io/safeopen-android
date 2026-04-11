@@ -11,28 +11,35 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -50,7 +57,10 @@ fun ScannerScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val isLoading = remember { viewModel.isLoading }
+    val isLoading by viewModel.isLoading.collectAsState()
+    val isPro by viewModel.isPro.collectAsState()
+
+    val cameraPermission = remember { mutableStateOf(false) }
 
     Box(modifier = modifier.fillMaxSize()) {
         // Camera Preview
@@ -83,7 +93,7 @@ fun ScannerScreen(
                                     imageAnalysis.setAnalyzer(executor) { imageProxy ->
                                         try {
                                             val mediaImage = imageProxy.image
-                                            if (mediaImage != null) {
+                                            if (mediaImage != null && viewModel.scannerActive.value) {
                                                 val image = InputImage.fromMediaImage(
                                                     mediaImage,
                                                     imageProxy.imageInfo.rotationDegrees
@@ -93,13 +103,17 @@ fun ScannerScreen(
                                                     .addOnSuccessListener { barcodes ->
                                                         for (barcode in barcodes) {
                                                             barcode.rawValue?.let {
-                                                                viewModel.onQrScanned(it)
+                                                                if (viewModel.scannerActive.value) {
+                                                                    viewModel.onQrScanned(it)
+                                                                }
                                                             }
                                                         }
                                                     }
                                                     .addOnCompleteListener {
                                                         imageProxy.close()
                                                     }
+                                            } else {
+                                                imageProxy.close()
                                             }
                                         } catch (e: Exception) {
                                             imageProxy.close()
@@ -115,6 +129,7 @@ fun ScannerScreen(
                                         preview,
                                         imageAnalysis
                                     )
+                                    cameraPermission.value = true
                                 } catch (e: Exception) {
                                     e.printStackTrace()
                                 }
@@ -134,7 +149,6 @@ fun ScannerScreen(
                 .align(Alignment.Center)
                 .background(Color.Transparent)
         ) {
-            // Frame corners (simplified)
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -142,17 +156,34 @@ fun ScannerScreen(
             )
         }
 
+        // Instruction text
+        Text(
+            "Point camera at QR code",
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 40.dp),
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+            color = Color.White
+        )
+
         // Bottom controls
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(24.dp)
+                .fillMaxWidth()
+                .background(
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                    shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
+                )
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (isLoading.value) {
+            if (isLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier
                         .size(48.dp)
-                        .align(Alignment.CenterHorizontally)
+                        .padding(vertical = 8.dp)
                 )
             } else {
                 Button(
@@ -167,20 +198,30 @@ fun ScannerScreen(
                         }
                     },
                     modifier = Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .padding(bottom = 12.dp)
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.ContentPaste,
                         contentDescription = "Paste",
                         modifier = Modifier.padding(end = 8.dp)
                     )
-                    Text("Paste Clipboard")
+                    Text("Paste URL from Clipboard")
+                }
+
+                if (!isPro) {
+                    Text(
+                        "Free version: last 10 scans kept",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
                 }
             }
         }
 
-        // History FAB
+        // History FAB with badge
         FloatingActionButton(
             onClick = onNavigateToHistory,
             modifier = Modifier
@@ -192,6 +233,27 @@ fun ScannerScreen(
                 imageVector = Icons.Default.History,
                 contentDescription = "History"
             )
+        }
+
+        // Pro badge (if not pro)
+        if (!isPro) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(16.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    .padding(8.dp)
+            ) {
+                Text(
+                    "Free",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
         }
     }
 }

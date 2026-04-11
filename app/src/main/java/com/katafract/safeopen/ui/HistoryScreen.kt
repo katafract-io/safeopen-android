@@ -1,5 +1,6 @@
 package com.katafract.safeopen.ui
 
+import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -12,10 +13,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -24,12 +28,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.katafract.safeopen.models.InspectionResult
 import com.katafract.safeopen.models.RiskLevel
+import com.katafract.safeopen.viewmodel.MainViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -40,8 +46,14 @@ fun HistoryScreen(
     onNavigateBack: () -> Unit,
     onSelectResult: (InspectionResult) -> Unit,
     onClearHistory: () -> Unit,
+    viewModel: MainViewModel? = null,
+    isPro: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val historyToShow = if (isPro) history else history.take(10)
+    val isLimited = !isPro && history.size > 10
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -67,15 +79,63 @@ fun HistoryScreen(
                     .padding(start = 8.dp)
             )
 
-            if (history.isNotEmpty()) {
+            if (historyToShow.isNotEmpty()) {
                 IconButton(onClick = onClearHistory) {
                     Icon(Icons.Default.Delete, contentDescription = "Clear history")
                 }
             }
         }
 
+        // Pro upgrade banner
+        if (isLimited && viewModel != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    .padding(12.dp)
+                    .padding(horizontal = 16.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Free: Last 10 scans",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            "Upgrade to Pro for unlimited history",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            viewModel.launchBilling(context as Activity)
+                        },
+                        modifier = Modifier
+                            .size(80.dp, 32.dp)
+                            .padding(start = 8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Text("Upgrade", fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+
         // History list or empty state
-        if (history.isEmpty()) {
+        if (historyToShow.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -91,13 +151,15 @@ fun HistoryScreen(
             }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 8.dp)
             ) {
-                items(history) { result ->
+                items(historyToShow) { result ->
                     HistoryItem(
                         result = result,
                         onClick = { onSelectResult(result) },
-                        modifier = Modifier.padding(vertical = 4.dp, horizontal = 8.dp)
+                        modifier = Modifier.padding(vertical = 4.dp)
                     )
                 }
 
@@ -120,7 +182,7 @@ private fun HistoryItem(
             .fillMaxWidth()
             .background(
                 color = MaterialTheme.colorScheme.surfaceVariant,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                shape = RoundedCornerShape(8.dp)
             )
             .clickable(onClick = onClick)
             .padding(12.dp),

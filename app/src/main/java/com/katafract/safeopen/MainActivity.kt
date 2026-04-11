@@ -6,7 +6,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.katafract.safeopen.ui.HistoryScreen
@@ -55,7 +54,8 @@ class MainActivity : ComponentActivity() {
 private fun MainScreen(viewModel: MainViewModel) {
     val screen by viewModel.screen.collectAsState()
     val currentResult by viewModel.currentResult.collectAsState()
-    val history by viewModel.history.collectAsState()
+    val history by viewModel.historyFlow.collectAsState(emptyList())
+    val isPro by viewModel.isPro.collectAsState()
 
     when (screen) {
         MainViewModel.Screen.SCANNER -> {
@@ -83,7 +83,9 @@ private fun MainScreen(viewModel: MainViewModel) {
                     // Load result and go to result screen
                     viewModel.reInspectPayload(result)
                 },
-                onClearHistory = { viewModel.clearHistory() }
+                onClearHistory = { viewModel.clearHistory() },
+                viewModel = viewModel,
+                isPro = isPro
             )
         }
     }
