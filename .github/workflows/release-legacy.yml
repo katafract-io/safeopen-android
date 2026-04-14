@@ -21,13 +21,6 @@ jobs:
           mkdir -p keystore
           printf '%s' "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore/safeopen-release.p12
 
-      - name: Archive keystore for Infisical backup
-        uses: actions/upload-artifact@v4
-        with:
-          name: safeopen-keystore-backup
-          path: keystore/safeopen-release.p12
-          retention-days: 1
-
       - name: Build release AAB
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
