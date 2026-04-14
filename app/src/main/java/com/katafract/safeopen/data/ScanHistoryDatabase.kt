@@ -6,6 +6,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.Dao
 import androidx.room.Room
+import androidx.room.RoomDatabase
 import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
@@ -51,7 +52,7 @@ interface ScanHistoryDao {
 }
 
 @Database(entities = [ScanHistoryEntity::class], version = 1, exportSchema = false)
-abstract class ScanHistoryDatabase : Room.RoomDatabase() {
+abstract class ScanHistoryDatabase : RoomDatabase() {
     abstract fun dao(): ScanHistoryDao
 
     companion object {
