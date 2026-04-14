@@ -26,8 +26,8 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Chip
-import androidx.compose.material3.ChipDefaults
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -170,11 +170,11 @@ fun ResultScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         result.riskFactors.forEach { factor ->
-                            Chip(
+                            AssistChip(
                                 onClick = { },
                                 label = { Text(factor, fontSize = 11.sp) },
                                 modifier = Modifier.padding(vertical = 4.dp),
-                                colors = ChipDefaults.chipColors(
+                                colors = AssistChipDefaults.assistChipColors(
                                     containerColor = when {
                                         result.riskLevel == RiskLevel.HIGH -> Color(0xFFEF4444).copy(alpha = 0.1f)
                                         result.riskLevel == RiskLevel.CAUTION -> Color(0xFFF59E0B).copy(alpha = 0.1f)
