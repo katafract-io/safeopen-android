@@ -32,6 +32,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -61,86 +69,127 @@ fun ScannerScreen(
     val isPro by viewModel.isPro.collectAsState()
 
     val cameraPermission = remember { mutableStateOf(false) }
+    val permissionDeniedMessage = remember { mutableStateOf("") }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            cameraPermission.value = true
+        } else {
+            permissionDeniedMessage.value = "Camera permission denied. Cannot access camera."
+        }
+    }
+
+    // Request permission if not already granted
+    LaunchedEffect(Unit) {
+        if (ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.CAMERA
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            cameraPermission.value = true
+        } else {
+            permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
-        // Camera Preview
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = { ctx ->
-                PreviewView(ctx).apply {
-                    scaleType = PreviewView.ScaleType.FILL_CENTER
+        // Camera Preview (only if permission granted)
+        if (cameraPermission.value) {
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { ctx ->
+                    PreviewView(ctx).apply {
+                        scaleType = PreviewView.ScaleType.FILL_CENTER
 
-                    lifecycleOwner.lifecycleScope.launch {
-                        try {
-                            val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
-                            cameraProviderFuture.addListener({
-                                try {
-                                    val cameraProvider = cameraProviderFuture.get()
+                        lifecycleOwner.lifecycleScope.launch {
+                            try {
+                                val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+                                cameraProviderFuture.addListener({
+                                    try {
+                                        val cameraProvider = cameraProviderFuture.get()
 
-                                    // Create preview
-                                    val preview = androidx.camera.core.Preview.Builder().build().apply {
-                                        setSurfaceProvider(surfaceProvider)
-                                    }
+                                        // Create preview
+                                        val preview = androidx.camera.core.Preview.Builder().build().apply {
+                                            setSurfaceProvider(surfaceProvider)
+                                        }
 
-                                    // Create image analysis use case
-                                    val imageAnalysis = ImageAnalysis.Builder()
-                                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                                        .build()
+                                        // Create image analysis use case
+                                        val imageAnalysis = ImageAnalysis.Builder()
+                                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                                            .build()
 
-                                    val barcodeScanner = BarcodeScanning.getClient()
-                                    val executor = Executors.newSingleThreadExecutor()
+                                        val barcodeScanner = BarcodeScanning.getClient()
+                                        val executor = Executors.newSingleThreadExecutor()
 
-                                    imageAnalysis.setAnalyzer(executor) { imageProxy ->
-                                        try {
-                                            val mediaImage = imageProxy.image
-                                            if (mediaImage != null && viewModel.scannerActive.value) {
-                                                val image = InputImage.fromMediaImage(
-                                                    mediaImage,
-                                                    imageProxy.imageInfo.rotationDegrees
-                                                )
+                                        imageAnalysis.setAnalyzer(executor) { imageProxy ->
+                                            try {
+                                                val mediaImage = imageProxy.image
+                                                if (mediaImage != null && viewModel.scannerActive.value) {
+                                                    val image = InputImage.fromMediaImage(
+                                                        mediaImage,
+                                                        imageProxy.imageInfo.rotationDegrees
+                                                    )
 
-                                                barcodeScanner.process(image)
-                                                    .addOnSuccessListener { barcodes ->
-                                                        for (barcode in barcodes) {
-                                                            barcode.rawValue?.let {
-                                                                if (viewModel.scannerActive.value) {
-                                                                    viewModel.onQrScanned(it)
+                                                    barcodeScanner.process(image)
+                                                        .addOnSuccessListener { barcodes ->
+                                                            for (barcode in barcodes) {
+                                                                barcode.rawValue?.let {
+                                                                    if (viewModel.scannerActive.value) {
+                                                                        viewModel.onQrScanned(it)
+                                                                    }
                                                                 }
                                                             }
                                                         }
-                                                    }
-                                                    .addOnCompleteListener {
-                                                        imageProxy.close()
-                                                    }
-                                            } else {
+                                                        .addOnCompleteListener {
+                                                            imageProxy.close()
+                                                        }
+                                                } else {
+                                                    imageProxy.close()
+                                                }
+                                            } catch (e: Exception) {
                                                 imageProxy.close()
                                             }
-                                        } catch (e: Exception) {
-                                            imageProxy.close()
                                         }
+
+                                        val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+                                        cameraProvider.unbindAll()
+                                        cameraProvider.bindToLifecycle(
+                                            lifecycleOwner,
+                                            cameraSelector,
+                                            preview,
+                                            imageAnalysis
+                                        )
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
                                     }
-
-                                    val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
-                                    cameraProvider.unbindAll()
-                                    cameraProvider.bindToLifecycle(
-                                        lifecycleOwner,
-                                        cameraSelector,
-                                        preview,
-                                        imageAnalysis
-                                    )
-                                    cameraPermission.value = true
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
-                                }
-                            }, ContextCompat.getMainExecutor(ctx))
-                        } catch (e: Exception) {
-                            e.printStackTrace()
+                                }, ContextCompat.getMainExecutor(ctx))
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
                         }
                     }
                 }
+            )
+        } else {
+            // Permission not granted - show message
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "Camera access required to scan QR codes.\nPlease grant camera permission in app settings.",
+                    modifier = Modifier.padding(32.dp),
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
             }
-        )
+        }
 
         // Scanning frame overlay
         Box(
@@ -254,6 +303,22 @@ fun ScannerScreen(
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
+        }
+
+        // Snackbar for permission denied message
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(16.dp)
+        )
+    }
+
+    // Show snackbar when permission is denied
+    LaunchedEffect(permissionDeniedMessage.value) {
+        if (permissionDeniedMessage.value.isNotEmpty()) {
+            snackbarHostState.showSnackbar(permissionDeniedMessage.value)
+            permissionDeniedMessage.value = ""
         }
     }
 }
