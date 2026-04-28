@@ -49,10 +49,10 @@ jobs:
             "https://secrets.katafract.io/api/v3/secrets/raw?workspaceId=f51b990a-63ba-4ce0-a388-cb9aadc42383&environment=prod&secretPath=/" \
             -H "Authorization: Bearer $TOKEN" > /tmp/root_secrets.json
           getval() { python3 -c "import json,sys; [print(s['secretValue']) for s in json.load(open('$1'))['secrets'] if s['secretKey']=='$2']"; }
-          getval /tmp/android_secrets.json SAFEOPEN_ANDROID_KEYSTORE_B64      > /tmp/ks.b64
-          getval /tmp/android_secrets.json SAFEOPEN_ANDROID_KEYSTORE_PASSWORD > /tmp/ks_pass.txt
-          getval /tmp/android_secrets.json SAFEOPEN_ANDROID_KEY_ALIAS         > /tmp/key_alias.txt
-          getval /tmp/android_secrets.json SAFEOPEN_ANDROID_KEY_PASSWORD      > /tmp/key_pass.txt
+          getval /tmp/android_secrets.json SAFEOPEN_ANDROID_KEYSTORE_B64_V2      > /tmp/ks.b64
+          getval /tmp/android_secrets.json SAFEOPEN_ANDROID_KEYSTORE_PASSWORD_V2 > /tmp/ks_pass.txt
+          getval /tmp/android_secrets.json SAFEOPEN_ANDROID_KEY_ALIAS_V2         > /tmp/key_alias.txt
+          getval /tmp/android_secrets.json SAFEOPEN_ANDROID_KEY_PASSWORD_V2      > /tmp/key_pass.txt
           getval /tmp/root_secrets.json    PLAY_SERVICE_ACCOUNT_KEY               > /tmp/play_sa.json
           rm -f /tmp/android_secrets.json /tmp/root_secrets.json
           # Verify all files have content
