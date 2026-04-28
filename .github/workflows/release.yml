@@ -52,7 +52,7 @@ jobs:
           getval /tmp/android_secrets.json SAFEOPEN_ANDROID_KEYSTORE_B64_V2      > /tmp/ks.b64
           getval /tmp/android_secrets.json SAFEOPEN_ANDROID_KEYSTORE_PASSWORD_V2 > /tmp/ks_pass.txt
           getval /tmp/android_secrets.json SAFEOPEN_ANDROID_KEY_ALIAS_V2         > /tmp/key_alias.txt
-          getval /tmp/android_secrets.json SAFEOPEN_ANDROID_KEY_PASSWORD_V2      > /tmp/key_pass.txt
+          cp /tmp/ks_pass.txt /tmp/key_pass.txt  # PKCS12 forces key_pwd == store_pwd; V2 KEY_PASSWORD secret stale, ignore
           getval /tmp/root_secrets.json    PLAY_SERVICE_ACCOUNT_KEY               > /tmp/play_sa.json
           rm -f /tmp/android_secrets.json /tmp/root_secrets.json
           # Verify all files have content
