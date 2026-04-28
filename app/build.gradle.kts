@@ -110,6 +110,9 @@ dependencies {
     // Google Play Billing
     implementation(libs.google.billing.client)
 
+    // Splash screen
+    implementation(libs.androidx.core.splashscreen)
+
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

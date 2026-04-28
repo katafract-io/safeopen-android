@@ -1,29 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!--
-        Base app theme — the launcher activity uses Theme.SafeOpen which
-        extends the SplashScreen theme. Compose owns the actual UI; this
-        theme only controls the system chrome before setContent runs.
-    -->
     <style name="Theme.SafeOpen" parent="Theme.SplashScreen">
-        <!-- Splash chrome -->
         <item name="windowSplashScreenBackground">@color/splash_background</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
         <item name="windowSplashScreenAnimationDuration">500</item>
         <item name="postSplashScreenTheme">@style/Theme.SafeOpen.Main</item>
 
-        <!-- Status / nav bars: transparent so Compose can draw edge-to-edge -->
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 
-    <!--
-        Theme actually applied after splash dismiss. The Compose-level
-        `SafeOpenTheme` re-tints status/nav bars per dark/light mode.
-    -->
-    <style name="Theme.SafeOpen.Main" parent="android:Theme.Material.Light.NoActionBar">
+    <style name="Theme.SafeOpen.Main" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/background</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>

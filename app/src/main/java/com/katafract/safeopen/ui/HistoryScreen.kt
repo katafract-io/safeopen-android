@@ -3,8 +3,10 @@ package com.katafract.safeopen.ui
 import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,31 +17,43 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.QuestionMark
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.katafract.safeopen.models.InspectionResult
 import com.katafract.safeopen.models.RiskLevel
+import com.katafract.safeopen.ui.components.EmptyState
+import com.katafract.safeopen.ui.theme.SafeOpenHaptics
+import com.katafract.safeopen.ui.theme.riskPalette
 import com.katafract.safeopen.viewmodel.MainViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
     history: List<InspectionResult>,
@@ -48,125 +62,136 @@ fun HistoryScreen(
     onClearHistory: () -> Unit,
     viewModel: MainViewModel? = null,
     isPro: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val historyToShow = if (isPro) history else history.take(10)
     val isLimited = !isPro && history.size > 10
+    val tick = SafeOpenHaptics.rememberTickProvider()
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        // Header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onNavigateBack) {
-                Icon(Icons.Default.Close, contentDescription = "Back")
-            }
-
-            Text(
-                "History",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 8.dp)
-            )
-
-            if (historyToShow.isNotEmpty()) {
-                IconButton(onClick = onClearHistory) {
-                    Icon(Icons.Default.Delete, contentDescription = "Clear history")
-                }
-            }
-        }
-
-        // Pro upgrade banner
-        if (isLimited && viewModel != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(8.dp)
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        "History",
+                        style = MaterialTheme.typography.titleLarge,
                     )
-                    .padding(12.dp)
-                    .padding(horizontal = 16.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "Free: Last 10 scans",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        Text(
-                            "Upgrade to Pro for unlimited history",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                        )
+                },
+                navigationIcon = {
+                    IconButton(onClick = {
+                        tick()
+                        onNavigateBack()
+                    }) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
                     }
-
-                    Button(
-                        onClick = {
-                            viewModel.launchBilling(context as Activity)
-                        },
-                        modifier = Modifier
-                            .size(80.dp, 32.dp)
-                            .padding(start = 8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Text("Upgrade", fontSize = 11.sp)
+                },
+                actions = {
+                    if (historyToShow.isNotEmpty()) {
+                        IconButton(onClick = {
+                            tick()
+                            onClearHistory()
+                        }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Clear history")
+                        }
                     }
-                }
-            }
-        }
-
-        // History list or empty state
-        if (historyToShow.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    "No history yet.\nStart by scanning a QR code or pasting a link.",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.align(Alignment.Center)
+                },
+                windowInsets = TopAppBarDefaults.windowInsets,
+            )
+        },
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+        ) {
+            if (isLimited && viewModel != null) {
+                ProUpgradeBanner(
+                    onUpgrade = {
+                        tick()
+                        viewModel.launchBilling(context as Activity)
+                    },
                 )
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 8.dp)
-            ) {
-                items(historyToShow) { result ->
-                    HistoryItem(
-                        result = result,
-                        onClick = { onSelectResult(result) },
-                        modifier = Modifier.padding(vertical = 4.dp)
+
+            if (historyToShow.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    EmptyState(
+                        title = "No scans yet",
+                        subtitle = "Paste a link, share to SafeOpen, or scan a QR code to begin.",
+                        icon = Icons.Default.History,
                     )
                 }
-
-                item {
-                    Box(modifier = Modifier.padding(bottom = 32.dp))
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    items(historyToShow) { result ->
+                        HistoryItem(
+                            result = result,
+                            onClick = {
+                                tick()
+                                onSelectResult(result)
+                            },
+                        )
+                    }
+                    item { Box(modifier = Modifier.padding(bottom = 24.dp)) }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ProUpgradeBanner(onUpgrade: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .background(
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shape = RoundedCornerShape(14.dp),
+            )
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Default.Star,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            modifier = Modifier.size(20.dp),
+        )
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 12.dp),
+        ) {
+            Text(
+                "Free: last 10 scans",
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontWeight = FontWeight.SemiBold,
+                ),
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Text(
+                "Upgrade to Pro for unlimited history",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+            )
+        }
+        Button(
+            onClick = onUpgrade,
+            shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
+        ) {
+            Text("Upgrade", style = MaterialTheme.typography.labelMedium)
         }
     }
 }
@@ -175,82 +200,69 @@ fun HistoryScreen(
 private fun HistoryItem(
     result: InspectionResult,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
+    val palette = riskPalette(result.riskLevel)
     Row(
         modifier = modifier
             .fillMaxWidth()
             .background(
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                shape = RoundedCornerShape(8.dp)
+                color = MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(14.dp),
             )
             .clickable(onClick = onClick)
             .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Risk level indicator
         Box(
             modifier = Modifier
-                .size(48.dp)
-                .background(
-                    color = when (result.riskLevel) {
-                        RiskLevel.LOW -> Color(0xFF10B981)
-                        RiskLevel.CAUTION -> Color(0xFFF59E0B)
-                        RiskLevel.HIGH -> Color(0xFFEF4444)
-                        RiskLevel.UNKNOWN -> Color(0xFF6B7280)
-                    },
-                    shape = CircleShape
-                ),
-            contentAlignment = Alignment.Center
+                .size(44.dp)
+                .background(color = palette.color, shape = CircleShape),
+            contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text = when (result.riskLevel) {
-                    RiskLevel.LOW -> "✓"
-                    RiskLevel.HIGH -> "!"
-                    else -> "?"
-                },
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp
+            Icon(
+                imageVector = riskIcon(result.riskLevel),
+                contentDescription = null,
+                tint = palette.onColor,
+                modifier = Modifier.size(22.dp),
             )
         }
 
-        // Content
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(horizontal = 12.dp)
+                .padding(horizontal = 12.dp),
         ) {
             Text(
                 text = result.payload.rawValue,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleSmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
             )
-
             Text(
-                text = "${result.payload.type} • ${formatTime(result.inspectedAt)}",
-                fontSize = 11.sp,
+                text = "${result.payload.type} · ${formatTime(result.inspectedAt)}",
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp)
+                modifier = Modifier.padding(top = 2.dp),
             )
         }
 
-        // Risk level label
         Text(
             text = result.riskLevel.displayTitle,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = when (result.riskLevel) {
-                RiskLevel.LOW -> Color(0xFF10B981)
-                RiskLevel.CAUTION -> Color(0xFFF59E0B)
-                RiskLevel.HIGH -> Color(0xFFEF4444)
-                RiskLevel.UNKNOWN -> Color(0xFF6B7280)
-            }
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontWeight = FontWeight.SemiBold,
+            ),
+            color = palette.color,
         )
     }
+}
+
+private fun riskIcon(level: RiskLevel): ImageVector = when (level) {
+    RiskLevel.LOW -> Icons.Default.Check
+    RiskLevel.CAUTION -> Icons.Default.WarningAmber
+    RiskLevel.HIGH -> Icons.Default.Shield
+    RiskLevel.UNKNOWN -> Icons.Default.QuestionMark
 }
 
 private fun formatTime(timestamp: Long): String {
@@ -259,7 +271,6 @@ private fun formatTime(timestamp: Long): String {
     val minutes = diff / (1000 * 60)
     val hours = diff / (1000 * 60 * 60)
     val days = diff / (1000 * 60 * 60 * 24)
-
     return when {
         minutes < 1 -> "Just now"
         minutes < 60 -> "${minutes}m ago"

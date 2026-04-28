@@ -26,4 +26,7 @@
     <color name="risk_caution">#F59E0B</color>
     <color name="risk_high">#F87171</color>
     <color name="risk_unknown">#9CA3AF</color>
+
+    <!-- Splash chrome (dark): kataMidnight backdrop -->
+    <color name="splash_background">#0F172A</color>
 </resources>
