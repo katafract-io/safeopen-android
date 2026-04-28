@@ -36,23 +36,29 @@ jobs:
           INFISICAL_CLIENT_ID:     ${{ secrets.INFISICAL_CLIENT_ID }}
           INFISICAL_CLIENT_SECRET: ${{ secrets.INFISICAL_CLIENT_SECRET }}
         run: |
+          set -e
           TOKEN=$(curl -sS --fail -X POST https://secrets.katafract.io/api/v1/auth/universal-auth/login \
             -H "Content-Type: application/json" \
             -d "{\"clientId\":\"$INFISICAL_CLIENT_ID\",\"clientSecret\":\"$INFISICAL_CLIENT_SECRET\"}" \
             | python3 -c 'import json,sys; print(json.load(sys.stdin)["accessToken"])')
-
-          fetch() {
-            curl -sS --fail \
-              "https://secrets.katafract.io/api/v3/secrets/raw/$1?workspaceId=f51b990a-63ba-4ce0-a388-cb9aadc42383&environment=prod&secretPath=$2" \
-              -H "Authorization: Bearer $TOKEN" \
-              | python3 -c 'import json,sys; print(json.load(sys.stdin)["secret"]["secretValue"])'
-          }
-          fetch SAFEOPEN_ANDROID_KEYSTORE_B64      /android > /tmp/ks.b64
-          fetch SAFEOPEN_ANDROID_KEYSTORE_PASSWORD /android > /tmp/ks_pass.txt
-          fetch SAFEOPEN_ANDROID_KEY_ALIAS         /android > /tmp/key_alias.txt
-          fetch SAFEOPEN_ANDROID_KEY_PASSWORD      /android > /tmp/key_pass.txt
-          fetch PLAY_SERVICE_ACCOUNT_KEY           /        > /tmp/play_sa.json
-
+          # Fetch the entire /android folder + root in one shot — by-name lookups have a bug for some keys
+          curl -sS --fail \
+            "https://secrets.katafract.io/api/v3/secrets/raw?workspaceId=f51b990a-63ba-4ce0-a388-cb9aadc42383&environment=prod&secretPath=/android" \
+            -H "Authorization: Bearer $TOKEN" > /tmp/android_secrets.json
+          curl -sS --fail \
+            "https://secrets.katafract.io/api/v3/secrets/raw?workspaceId=f51b990a-63ba-4ce0-a388-cb9aadc42383&environment=prod&secretPath=/" \
+            -H "Authorization: Bearer $TOKEN" > /tmp/root_secrets.json
+          getval() { python3 -c "import json,sys; [print(s['secretValue']) for s in json.load(open('$1'))['secrets'] if s['secretKey']=='$2']"; }
+          getval /tmp/android_secrets.json SAFEOPEN_ANDROID_KEYSTORE_B64      > /tmp/ks.b64
+          getval /tmp/android_secrets.json SAFEOPEN_ANDROID_KEYSTORE_PASSWORD > /tmp/ks_pass.txt
+          getval /tmp/android_secrets.json SAFEOPEN_ANDROID_KEY_ALIAS         > /tmp/key_alias.txt
+          getval /tmp/android_secrets.json SAFEOPEN_ANDROID_KEY_PASSWORD      > /tmp/key_pass.txt
+          getval /tmp/root_secrets.json    PLAY_SERVICE_ACCOUNT_KEY               > /tmp/play_sa.json
+          rm -f /tmp/android_secrets.json /tmp/root_secrets.json
+          # Verify all files have content
+          for f in /tmp/ks.b64 /tmp/ks_pass.txt /tmp/key_alias.txt /tmp/key_pass.txt /tmp/play_sa.json; do
+            if [ ! -s "$f" ]; then echo "ERROR: $f is empty"; exit 1; fi
+          done
       - name: Decode keystore
         run: |
           mkdir -p keystore
