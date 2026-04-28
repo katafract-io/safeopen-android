@@ -1,89 +1,144 @@
 package com.katafract.safeopen.ui.theme
 
+import android.app.Activity
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import com.katafract.safeopen.models.RiskLevel
 
-// SafeOpen color palette
-private val EmergentGreen = Color(0xFF10B981)
-private val EmergentGreenDark = Color(0xFF059669)
-private val SafeGreen = Color(0xFF34D399)
-private val CautionAmber = Color(0xFFF59E0B)
-private val DangerRed = Color(0xFFEF4444)
-private val ErrorRed = Color(0xFFF87171)
-private val NeutralGray = Color(0xFF6B7280)
-private val SurfaceLight = Color(0xFFFAFAFA)
-private val SurfaceDark = Color(0xFF1F2937)
+// ── Material 3 color schemes ────────────────────────────────────────────
+// Note: we DO NOT use dynamic color (Material You) — SafeOpen's brand
+// hinges on the verdict-color contract; we never want OEM tinting to
+// recolor Safe/Suspicious/Dangerous surfaces.
 
 private val LightColorScheme = lightColorScheme(
-    primary = EmergentGreen,
+    primary = SafeGreen500,
     onPrimary = Color.White,
-    primaryContainer = SafeGreen,
-    onPrimaryContainer = Color(0xFF064E3B),
-    secondary = CautionAmber,
+    primaryContainer = SafeGreenSoft,
+    onPrimaryContainer = SafeGreenDark,
+    secondary = CautionAmber500,
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFFFEF3C7),
-    onSecondaryContainer = Color(0xFF78350F),
-    tertiary = DangerRed,
+    secondaryContainer = CautionAmberSoft,
+    onSecondaryContainer = CautionAmberDark,
+    tertiary = DangerRed500,
     onTertiary = Color.White,
-    tertiaryContainer = ErrorRed,
-    onTertiaryContainer = Color(0xFF7F1D1D),
-    error = DangerRed,
+    tertiaryContainer = DangerRedSoft,
+    onTertiaryContainer = DangerRedDark,
+    error = DangerRed500,
     onError = Color.White,
-    errorContainer = ErrorRed,
-    onErrorContainer = Color.White,
+    errorContainer = DangerRedSoft,
+    onErrorContainer = DangerRedDark,
     background = Color.White,
-    onBackground = Color.Black,
-    surface = SurfaceLight,
-    onSurface = Color(0xFF1F2937),
-    surfaceVariant = Color(0xFFF3F4F6),
-    onSurfaceVariant = Color(0xFF6B7280),
-    outline = Color(0xFFD1D5DB)
+    onBackground = Neutral900,
+    surface = Neutral50,
+    onSurface = Neutral900,
+    surfaceVariant = Neutral100,
+    onSurfaceVariant = Neutral500,
+    outline = Neutral300,
+    outlineVariant = Neutral200,
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = SafeGreen,
-    onPrimary = Color(0xFF064E3B),
-    primaryContainer = EmergentGreenDark,
+    primary = SafeGreen300,
+    onPrimary = SafeGreenDark,
+    primaryContainer = SafeGreen600,
     onPrimaryContainer = Color.White,
-    secondary = CautionAmber,
-    onSecondary = Color(0xFF78350F),
-    secondaryContainer = Color(0xFF92400E),
+    secondary = CautionAmber500,
+    onSecondary = CautionAmberDark,
+    secondaryContainer = CautionAmber600,
     onSecondaryContainer = Color.White,
-    tertiary = ErrorRed,
+    tertiary = DangerRed300,
     onTertiary = Color.White,
-    tertiaryContainer = Color(0xB3B3B3),
+    tertiaryContainer = DangerRed600,
     onTertiaryContainer = Color.White,
-    error = ErrorRed,
+    error = DangerRed300,
     onError = Color.White,
-    errorContainer = DangerRed,
+    errorContainer = DangerRed600,
     onErrorContainer = Color.White,
-    background = SurfaceDark,
+    background = KataMidnight,
     onBackground = Color.White,
-    surface = Color(0xFF111827),
+    surface = Neutral900,
     onSurface = Color.White,
-    surfaceVariant = Color(0xFF374151),
-    onSurfaceVariant = Color(0xFFD1D5DB),
-    outline = Color(0xFF9CA3AF)
+    surfaceVariant = Neutral700,
+    onSurfaceVariant = Neutral300,
+    outline = Neutral500,
+    outlineVariant = Neutral700,
 )
+
+// ── Risk palette (verdict tokens) ────────────────────────────────────────
+// Risk colors are deliberately *fixed* across light/dark — Safe means
+// emerald, Dangerous means red, full stop. Soft variants are surfaces.
+
+data class RiskPalette(
+    val color: Color,
+    val onColor: Color,
+    val soft: Color,
+    val onSoft: Color,
+)
+
+@Composable
+fun riskPalette(level: RiskLevel): RiskPalette = when (level) {
+    RiskLevel.LOW -> RiskPalette(
+        color = SafeGreen500,
+        onColor = Color.White,
+        soft = if (isSystemInDarkTheme()) SafeGreen600.copy(alpha = 0.18f) else SafeGreenSoft,
+        onSoft = if (isSystemInDarkTheme()) SafeGreen300 else SafeGreenDark,
+    )
+    RiskLevel.CAUTION -> RiskPalette(
+        color = CautionAmber500,
+        onColor = Color.White,
+        soft = if (isSystemInDarkTheme()) CautionAmber600.copy(alpha = 0.18f) else CautionAmberSoft,
+        onSoft = if (isSystemInDarkTheme()) CautionAmber500 else CautionAmberDark,
+    )
+    RiskLevel.HIGH -> RiskPalette(
+        color = DangerRed500,
+        onColor = Color.White,
+        soft = if (isSystemInDarkTheme()) DangerRed600.copy(alpha = 0.20f) else DangerRedSoft,
+        onSoft = if (isSystemInDarkTheme()) DangerRed300 else DangerRedDark,
+    )
+    RiskLevel.UNKNOWN -> RiskPalette(
+        color = Neutral500,
+        onColor = Color.White,
+        soft = if (isSystemInDarkTheme()) Neutral700 else Neutral100,
+        onSoft = if (isSystemInDarkTheme()) Neutral300 else Neutral700,
+    )
+}
 
 @Composable
 fun SafeOpenTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    content: @Composable () -> Unit
+    content: @Composable () -> Unit,
 ) {
-    val colorScheme = when {
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+
+    // Status / nav bar tinting per theme. We make the system bars
+    // transparent so edge-to-edge layouts can paint underneath, then
+    // ask the system to use the appropriate icon contrast.
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as? Activity)?.window ?: return@SideEffect
+            window.statusBarColor = Color.Transparent.toArgb()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                window.navigationBarColor = Color.Transparent.toArgb()
+            }
+            val controller = WindowCompat.getInsetsController(window, view)
+            controller.isAppearanceLightStatusBars = !darkTheme
+            controller.isAppearanceLightNavigationBars = !darkTheme
+        }
     }
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = MaterialTheme.typography,
-        content = content
+        typography = SafeOpenTypography,
+        content = content,
     )
 }

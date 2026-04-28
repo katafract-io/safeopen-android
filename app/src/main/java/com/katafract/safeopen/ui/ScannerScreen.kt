@@ -17,6 +17,11 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,10 +32,9 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentPaste
@@ -38,11 +42,13 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -56,13 +62,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.google.mlkit.vision.barcode.BarcodeScanner
@@ -70,6 +76,9 @@ import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import com.katafract.safeopen.ui.components.ScanRadar
+import com.katafract.safeopen.ui.theme.KataGold
+import com.katafract.safeopen.ui.theme.SafeOpenHaptics
 import com.katafract.safeopen.viewmodel.MainViewModel
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -82,7 +91,7 @@ private enum class CamPermState { Unknown, Granted, Denied, PermanentlyDenied }
 fun ScannerScreen(
     viewModel: MainViewModel,
     onNavigateToHistory: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -93,16 +102,17 @@ fun ScannerScreen(
     var permState by remember {
         mutableStateOf(
             if (ContextCompat.checkSelfPermission(
-                    context, Manifest.permission.CAMERA
+                    context, Manifest.permission.CAMERA,
                 ) == PackageManager.PERMISSION_GRANTED
-            ) CamPermState.Granted else CamPermState.Unknown
+            ) CamPermState.Granted else CamPermState.Unknown,
         )
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
+    val tick = SafeOpenHaptics.rememberTickProvider()
 
     val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
+        contract = ActivityResultContracts.RequestPermission(),
     ) { granted ->
         permState = when {
             granted -> CamPermState.Granted
@@ -119,153 +129,224 @@ fun ScannerScreen(
         }
     }
 
-    Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
-        when (permState) {
-            CamPermState.Granted -> CameraPreview(
-                viewModel = viewModel,
-                lifecycleOwner = lifecycleOwner,
-                modifier = Modifier.fillMaxSize()
-            )
-            else -> PermissionGate(
-                state = permState,
-                onRequest = { permissionLauncher.launch(Manifest.permission.CAMERA) },
-                onOpenSettings = {
-                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                        data = Uri.fromParts("package", context.packageName, null)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    context.startActivity(intent)
-                },
-                modifier = Modifier.fillMaxSize()
-            )
-        }
-
-        // Centered finder frame (decorative)
-        if (permState == CamPermState.Granted) {
-            FinderFrame(modifier = Modifier.align(Alignment.Center))
-        }
-
-        // Top bar with title, status badge, and history FAB — respects status bar insets.
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(WindowInsets.statusBars.asPaddingValues())
-                .padding(16.dp)
-        ) {
-            Text(
-                "Point camera at QR code",
-                modifier = Modifier.align(Alignment.Center),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color.White
-            )
-            FloatingActionButton(
-                onClick = onNavigateToHistory,
-                modifier = Modifier.align(Alignment.CenterEnd).size(48.dp),
-                containerColor = MaterialTheme.colorScheme.primary
-            ) {
-                Icon(
-                    imageVector = Icons.Default.History,
-                    contentDescription = "History"
+    // Bezel-to-bezel scanner preview: contentWindowInsets = 0 lets the camera
+    // extend behind status/nav bars. Per-control insets are applied below
+    // (top scrim + bottom action bar each consume systemBars).
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        containerColor = Color.Black,
+    ) { _ ->
+        Box(modifier = Modifier.fillMaxSize()) {
+            when (permState) {
+                CamPermState.Granted -> CameraPreview(
+                    viewModel = viewModel,
+                    lifecycleOwner = lifecycleOwner,
+                    modifier = Modifier.fillMaxSize(),
                 )
-            }
-            if (!isPro) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .background(
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        "Free",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
-            }
-        }
-
-        // Bottom controls — paste from clipboard. Respects nav bar insets.
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .background(
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                    shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
-                )
-                .padding(16.dp)
-                .padding(WindowInsets.navigationBars.asPaddingValues()),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(48.dp).padding(vertical = 8.dp)
-                )
-            } else {
-                Button(
-                    onClick = {
-                        val clipboard =
-                            context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        val clip = clipboard.primaryClip
-                        if (clip != null && clip.itemCount > 0) {
-                            val text = clip.getItemAt(0).text?.toString() ?: ""
-                            if (text.isNotBlank()) viewModel.inspectPasted(text)
+                else -> PermissionGate(
+                    state = permState,
+                    onRequest = { permissionLauncher.launch(Manifest.permission.CAMERA) },
+                    onOpenSettings = {
+                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = Uri.fromParts("package", context.packageName, null)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         }
+                        context.startActivity(intent)
                     },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ContentPaste,
-                        contentDescription = "Paste",
-                        modifier = Modifier.padding(end = 8.dp)
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+
+            // Center reticle (gold corner ticks, decorative) — only when granted.
+            if (permState == CamPermState.Granted) {
+                ScanReticle(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(260.dp),
+                )
+            }
+
+            // Top scrim (system-bar safe area + instruction copy + history FAB + Free pill)
+            Column(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            0f to Color.Black.copy(alpha = 0.55f),
+                            1f to Color.Transparent,
+                        ),
                     )
-                    Text("Paste URL from Clipboard")
+                    .padding(WindowInsets.systemBars.asPaddingValues())
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    if (!isPro) {
+                        BrandPill(
+                            label = "Free",
+                            modifier = Modifier.align(Alignment.CenterStart),
+                        )
+                    }
+                    FilledIconButton(
+                        onClick = {
+                            tick()
+                            onNavigateToHistory()
+                        },
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = Color.White.copy(alpha = 0.92f),
+                            contentColor = Color.Black,
+                        ),
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = "History",
+                        )
+                    }
                 }
-                if (!isPro) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "Free version: last 10 scans kept",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Text(
+                    text = "Point camera at QR code",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                )
+            }
+
+            // Bottom action bar — own systemBars inset for nav bar.
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .background(
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
                     )
+                    .padding(WindowInsets.systemBars.asPaddingValues())
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                AnimatedVisibility(
+                    visible = isLoading,
+                    enter = fadeIn() + slideInVertically { it / 2 },
+                    exit = fadeOut() + slideOutVertically { it / 2 },
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        ScanRadar(size = 56.dp)
+                        Text(
+                            text = "Inspecting…",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                }
+
+                AnimatedVisibility(
+                    visible = !isLoading,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Button(
+                            onClick = {
+                                tick()
+                                val clipboard =
+                                    context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                val clip = clipboard.primaryClip
+                                if (clip != null && clip.itemCount > 0) {
+                                    val text = clip.getItemAt(0).text?.toString() ?: ""
+                                    if (text.isNotBlank()) {
+                                        viewModel.inspectPasted(text)
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                            ),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ContentPaste,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .padding(end = 6.dp),
+                            )
+                            Text(
+                                text = "Paste link from clipboard",
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                        }
+
+                        if (!isPro) {
+                            Text(
+                                text = "Free version · last 10 scans kept",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                        }
+                    }
                 }
             }
         }
+    }
+}
 
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp)
+@Composable
+private fun BrandPill(label: String, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .background(
+                color = KataGold.copy(alpha = 0.18f),
+                shape = RoundedCornerShape(50),
+            )
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = FontWeight.SemiBold,
+            ),
+            color = KataGold,
         )
     }
 }
 
 @Composable
-private fun FinderFrame(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier.size(260.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        // Four corner brackets via thin boxes.
-        val corner = 32.dp
-        val thickness = 3.dp
-        // Top-left
-        Box(Modifier.align(Alignment.TopStart).size(corner, thickness).background(Color.White))
-        Box(Modifier.align(Alignment.TopStart).size(thickness, corner).background(Color.White))
-        // Top-right
-        Box(Modifier.align(Alignment.TopEnd).size(corner, thickness).background(Color.White))
-        Box(Modifier.align(Alignment.TopEnd).size(thickness, corner).background(Color.White))
-        // Bottom-left
-        Box(Modifier.align(Alignment.BottomStart).size(corner, thickness).background(Color.White))
-        Box(Modifier.align(Alignment.BottomStart).size(thickness, corner).background(Color.White))
-        // Bottom-right
-        Box(Modifier.align(Alignment.BottomEnd).size(corner, thickness).background(Color.White))
-        Box(Modifier.align(Alignment.BottomEnd).size(thickness, corner).background(Color.White))
+private fun ScanReticle(modifier: Modifier = Modifier) {
+    Box(modifier = modifier) {
+        // Four corner ticks — purely decorative gold accents.
+        val cornerSize = 28.dp
+        val strokeWidth = 2.dp
+        val color = KataGold.copy(alpha = 0.95f)
+
+        // top-left
+        Box(modifier = Modifier.align(Alignment.TopStart).size(cornerSize, strokeWidth).background(color))
+        Box(modifier = Modifier.align(Alignment.TopStart).size(strokeWidth, cornerSize).background(color))
+        // top-right
+        Box(modifier = Modifier.align(Alignment.TopEnd).size(cornerSize, strokeWidth).background(color))
+        Box(modifier = Modifier.align(Alignment.TopEnd).size(strokeWidth, cornerSize).background(color))
+        // bottom-left
+        Box(modifier = Modifier.align(Alignment.BottomStart).size(cornerSize, strokeWidth).background(color))
+        Box(modifier = Modifier.align(Alignment.BottomStart).size(strokeWidth, cornerSize).background(color))
+        // bottom-right
+        Box(modifier = Modifier.align(Alignment.BottomEnd).size(cornerSize, strokeWidth).background(color))
+        Box(modifier = Modifier.align(Alignment.BottomEnd).size(strokeWidth, cornerSize).background(color))
     }
 }
 
@@ -274,34 +355,33 @@ private fun PermissionGate(
     state: CamPermState,
     onRequest: () -> Unit,
     onOpenSettings: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier
             .background(MaterialTheme.colorScheme.background)
             .padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Center,
     ) {
         Icon(
             imageVector = Icons.Default.QrCodeScanner,
             contentDescription = null,
             modifier = Modifier.size(72.dp),
-            tint = MaterialTheme.colorScheme.primary
+            tint = MaterialTheme.colorScheme.primary,
         )
         Spacer(Modifier.height(16.dp))
         Text(
             "Camera access needed",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onBackground
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onBackground,
         )
         Spacer(Modifier.height(8.dp))
         Text(
             "SafeOpen needs your camera to scan QR codes for link safety inspection.",
-            fontSize = 14.sp,
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(24.dp))
         when (state) {
@@ -310,7 +390,7 @@ private fun PermissionGate(
                     Icon(
                         imageVector = Icons.Default.Settings,
                         contentDescription = null,
-                        modifier = Modifier.padding(end = 8.dp)
+                        modifier = Modifier.padding(end = 8.dp),
                     )
                     Text("Open App Settings")
                 }
@@ -320,7 +400,7 @@ private fun PermissionGate(
                     Icon(
                         imageVector = Icons.Default.QrCodeScanner,
                         contentDescription = null,
-                        modifier = Modifier.padding(end = 8.dp)
+                        modifier = Modifier.padding(end = 8.dp),
                     )
                     Text("Grant Camera Access")
                 }
@@ -333,15 +413,14 @@ private fun PermissionGate(
 private fun CameraPreview(
     viewModel: MainViewModel,
     lifecycleOwner: androidx.lifecycle.LifecycleOwner,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
     val executor: ExecutorService = remember { Executors.newSingleThreadExecutor() }
     val barcodeScanner: BarcodeScanner = remember {
         BarcodeScanning.getClient(
             BarcodeScannerOptions.Builder()
                 .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
-                .build()
+                .build(),
         )
     }
 
@@ -377,21 +456,21 @@ private fun CameraPreview(
                         lifecycleOwner,
                         CameraSelector.DEFAULT_BACK_CAMERA,
                         preview,
-                        analysis
+                        analysis,
                     )
                 } catch (e: Exception) {
                     Log.e(TAG, "Camera bind failed", e)
                 }
             }, ContextCompat.getMainExecutor(ctx))
             previewView
-        }
+        },
     )
 }
 
 private fun processImageProxy(
     imageProxy: ImageProxy,
     scanner: BarcodeScanner,
-    viewModel: MainViewModel
+    viewModel: MainViewModel,
 ) {
     val mediaImage = imageProxy.image
     if (mediaImage == null) {
