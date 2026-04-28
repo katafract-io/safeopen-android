@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 jobs:
   build-and-upload:
@@ -41,7 +42,7 @@ jobs:
           fetch SAFEOPEN_ANDROID_KEYSTORE_PASSWORD /android > /tmp/ks_pass.txt
           fetch SAFEOPEN_ANDROID_KEY_ALIAS         /android > /tmp/key_alias.txt
           fetch SAFEOPEN_ANDROID_KEY_PASSWORD      /android > /tmp/key_pass.txt
-          fetch PLAY_SERVICE_ACCOUNT_JSON          /        > /tmp/play_sa.json
+          fetch PLAY_SERVICE_ACCOUNT_KEY           /        > /tmp/play_sa.json
 
       - name: Decode keystore
         run: |
