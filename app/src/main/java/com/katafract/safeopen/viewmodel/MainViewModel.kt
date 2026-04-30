@@ -5,10 +5,12 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.katafract.safeopen.billing.BillingManager
+import com.katafract.safeopen.credits.CreditsRepository
 import com.katafract.safeopen.data.ScanHistoryDatabase
 import com.katafract.safeopen.data.ScanHistoryEntity
 import com.katafract.safeopen.models.InspectionResult
 import com.katafract.safeopen.models.ScannedPayload
+import com.katafract.safeopen.network.Offer
 import com.katafract.safeopen.services.SafeOpenService
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,17 +45,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val dao = db.dao()
     private val gson = Gson()
 
-    // Billing
-    private val _isPro = MutableStateFlow(false)
-    val isPro: StateFlow<Boolean> = _isPro.asStateFlow()
-
+    // Billing + credits — BillingManager hands purchase tokens to the
+    // repo, which posts them to artemis for verification + grant, then
+    // consumes the Play purchase on success.
     val billingManager = BillingManager(
         context = application,
-        onPurchaseSuccess = { _, _ ->
-            _isPro.value = true
+        onPurchaseSuccess = { token, productId ->
+            viewModelScope.launch {
+                creditsRepo.redeemPurchase(token, productId)
+            }
         },
-        onPurchaseError = { }
     )
+
+    private val creditsRepo = CreditsRepository(
+        context = application,
+        billingManager = billingManager,
+    )
+
+    val creditsState: StateFlow<com.katafract.safeopen.credits.CreditsState> = creditsRepo.creditsState
+    val offers: StateFlow<List<Offer>> = creditsRepo.offers
 
     // History flow from DB
     val historyFlow: Flow<List<InspectionResult>> = dao.getAllScans().map { entities ->
@@ -100,8 +110,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     init {
-        // Initialize billing
         billingManager.connect()
+        viewModelScope.launch { creditsRepo.refreshBalance() }
+        viewModelScope.launch { creditsRepo.refreshOffers() }
     }
 
     override fun onCleared() {
@@ -193,11 +204,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun launchBilling(activity: Activity) {
-        billingManager.launchPurchase(activity)
+    fun launchPurchase(activity: Activity, productId: String) {
+        billingManager.launchPurchase(activity, productId)
     }
 
-    fun restorePurchases() {
-        billingManager.restorePurchases()
+    fun refreshCredits() {
+        viewModelScope.launch { creditsRepo.refreshBalance() }
+    }
+
+    fun refreshOffers() {
+        viewModelScope.launch { creditsRepo.refreshOffers() }
     }
 }

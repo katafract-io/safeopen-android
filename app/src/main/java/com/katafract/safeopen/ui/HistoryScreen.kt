@@ -17,6 +17,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -31,11 +33,18 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -45,6 +54,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.katafract.safeopen.models.InspectionResult
 import com.katafract.safeopen.models.RiskLevel
+import com.katafract.safeopen.network.Offer
 import com.katafract.safeopen.ui.components.EmptyState
 import com.katafract.safeopen.ui.theme.SafeOpenHaptics
 import com.katafract.safeopen.ui.theme.riskPalette
@@ -61,13 +71,15 @@ fun HistoryScreen(
     onSelectResult: (InspectionResult) -> Unit,
     onClearHistory: () -> Unit,
     viewModel: MainViewModel? = null,
-    isPro: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val historyToShow = if (isPro) history else history.take(10)
-    val isLimited = !isPro && history.size > 10
     val tick = SafeOpenHaptics.rememberTickProvider()
+
+    val creditsState = viewModel?.creditsState?.collectAsState()
+    val offers = viewModel?.offers?.collectAsState()
+    var showBuySheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -89,7 +101,7 @@ fun HistoryScreen(
                     }
                 },
                 actions = {
-                    if (historyToShow.isNotEmpty()) {
+                    if (history.isNotEmpty()) {
                         IconButton(onClick = {
                             tick()
                             onClearHistory()
@@ -107,16 +119,18 @@ fun HistoryScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            if (isLimited && viewModel != null) {
-                ProUpgradeBanner(
-                    onUpgrade = {
+            if (viewModel != null && creditsState != null) {
+                CreditsBanner(
+                    balance = creditsState.value.balance,
+                    onBuy = {
                         tick()
-                        viewModel.launchBilling(context as Activity)
+                        viewModel.refreshOffers()
+                        showBuySheet = true
                     },
                 )
             }
 
-            if (historyToShow.isEmpty()) {
+            if (history.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     EmptyState(
                         title = "No scans yet",
@@ -130,7 +144,7 @@ fun HistoryScreen(
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    items(historyToShow) { result ->
+                    items(history) { result ->
                         HistoryItem(
                             result = result,
                             onClick = {
@@ -144,10 +158,30 @@ fun HistoryScreen(
             }
         }
     }
+
+    if (showBuySheet && viewModel != null && offers != null) {
+        ModalBottomSheet(
+            onDismissRequest = { showBuySheet = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surface,
+        ) {
+            BuyCreditsSheet(
+                offers = offers.value,
+                onPurchase = { productId ->
+                    tick()
+                    viewModel.launchPurchase(context as Activity, productId)
+                    showBuySheet = false
+                },
+            )
+        }
+    }
 }
 
 @Composable
-private fun ProUpgradeBanner(onUpgrade: () -> Unit) {
+private fun CreditsBanner(
+    balance: Int,
+    onBuy: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -160,7 +194,7 @@ private fun ProUpgradeBanner(onUpgrade: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            imageVector = Icons.Default.Star,
+            imageVector = Icons.Default.AutoAwesome,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onPrimaryContainer,
             modifier = Modifier.size(20.dp),
@@ -171,29 +205,139 @@ private fun ProUpgradeBanner(onUpgrade: () -> Unit) {
                 .padding(start = 12.dp),
         ) {
             Text(
-                "Free: last 10 scans",
+                "$balance AI credits",
                 style = MaterialTheme.typography.titleSmall.copy(
                     fontWeight = FontWeight.SemiBold,
                 ),
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
             Text(
-                "Upgrade to Pro for unlimited history",
+                "1 credit = 1 AI page summary",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
             )
         }
         Button(
-            onClick = onUpgrade,
+            onClick = onBuy,
             shape = RoundedCornerShape(10.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
             ),
         ) {
-            Text("Upgrade", style = MaterialTheme.typography.labelMedium)
+            Text("Get credits", style = MaterialTheme.typography.labelMedium)
         }
     }
+}
+
+@Composable
+private fun BuyCreditsSheet(
+    offers: List<Offer>,
+    onPurchase: (productId: String) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 12.dp)
+            .padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            "Buy AI credits",
+            style = MaterialTheme.typography.titleLarge.copy(
+                fontWeight = FontWeight.SemiBold,
+            ),
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            "Credits never expire. Used for AI page summaries when you inspect a link.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        if (offers.isEmpty()) {
+            Text(
+                "Loading offers…",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 24.dp),
+            )
+        } else {
+            offers.forEach { offer ->
+                OfferRow(offer = offer, onClick = { onPurchase(offer.product_id) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun OfferRow(
+    offer: Offer,
+    onClick: () -> Unit,
+) {
+    val priceLabel = priceForProduct(offer.product_id)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                shape = RoundedCornerShape(14.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .background(
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+                    shape = CircleShape,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Bolt,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 12.dp),
+        ) {
+            Text(
+                "${offer.total_credits} credits",
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontWeight = FontWeight.SemiBold,
+                ),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            if (offer.bonus_credits > 0) {
+                Text(
+                    "${offer.base_credits} + ${offer.bonus_credits} bonus",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Text(
+            priceLabel,
+            style = MaterialTheme.typography.titleSmall.copy(
+                fontWeight = FontWeight.SemiBold,
+            ),
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
+}
+
+private fun priceForProduct(productId: String): String = when (productId) {
+    "com.katafract.safeopen.credits_starter" -> "$0.99"
+    "com.katafract.safeopen.credits_standard" -> "$3.99"
+    "com.katafract.safeopen.credits_power" -> "$9.99"
+    else -> ""
 }
 
 @Composable
