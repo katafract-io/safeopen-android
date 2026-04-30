@@ -101,7 +101,6 @@ private fun MainScreen(viewModel: MainViewModel) {
     val screen by viewModel.screen.collectAsState()
     val currentResult by viewModel.currentResult.collectAsState()
     val history by viewModel.historyFlow.collectAsState(emptyList())
-    val isPro by viewModel.isPro.collectAsState()
 
     // Smooth transition between screens — slide-up + fade for the
     // result reveal, plain fade for back-navigation.
@@ -148,7 +147,6 @@ private fun MainScreen(viewModel: MainViewModel) {
                     },
                     onClearHistory = { viewModel.clearHistory() },
                     viewModel = viewModel,
-                    isPro = isPro,
                 )
             }
         }

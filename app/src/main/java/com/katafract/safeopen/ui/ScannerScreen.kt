@@ -97,7 +97,7 @@ fun ScannerScreen(
     val activity = context as? Activity
     val lifecycleOwner = LocalLifecycleOwner.current
     val isLoading by viewModel.isLoading.collectAsState()
-    val isPro by viewModel.isPro.collectAsState()
+    val creditsState by viewModel.creditsState.collectAsState()
 
     var permState by remember {
         mutableStateOf(
@@ -184,12 +184,10 @@ fun ScannerScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Box(modifier = Modifier.fillMaxWidth()) {
-                    if (!isPro) {
-                        BrandPill(
-                            label = "Free",
-                            modifier = Modifier.align(Alignment.CenterStart),
-                        )
-                    }
+                    BrandPill(
+                        label = "${creditsState.balance} credits",
+                        modifier = Modifier.align(Alignment.CenterStart),
+                    )
                     FilledIconButton(
                         onClick = {
                             tick()
@@ -291,15 +289,13 @@ fun ScannerScreen(
                             )
                         }
 
-                        if (!isPro) {
-                            Text(
-                                text = "Free version · last 10 scans kept",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(top = 8.dp),
-                            )
-                        }
+                        Text(
+                            text = "Scanning is always free. Credits power AI summaries.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
                     }
                 }
             }
