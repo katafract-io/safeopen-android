@@ -1,7 +1,6 @@
 package com.katafract.safeopen.credits
 
 import android.content.Context
-import com.android.billingclient.api.Purchase
 import com.katafract.safeopen.network.InspectionAPIClient
 import com.katafract.safeopen.network.CreditsSnapshot
 import com.katafract.safeopen.network.Offer
@@ -60,12 +59,12 @@ class CreditsRepository(
         }
     }
 
-    suspend fun redeemPurchase(purchase: Purchase, productId: String) {
+    suspend fun redeemPurchase(purchaseToken: String, productId: String) {
         try {
-            val response = apiClient.redeemPlayPurchase(productId, purchase.purchaseToken)
+            val response = apiClient.redeemPlayPurchase(productId, purchaseToken)
             if (response.granted > 0 || response.balance >= 0) {
                 // Success: consume the purchase
-                billingManager.consumePurchase(purchase)
+                billingManager.consumePurchaseByToken(purchaseToken)
                 // Update balance
                 _creditsState.value = _creditsState.value.copy(
                     balance = response.balance,

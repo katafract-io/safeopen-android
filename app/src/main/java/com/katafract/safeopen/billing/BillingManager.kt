@@ -105,6 +105,11 @@ class BillingManager(
         }
     }
 
+    fun consumePurchaseByToken(purchaseToken: String) {
+        val params = ConsumeParams.newBuilder().setPurchaseToken(purchaseToken).build()
+        billingClient.consumeAsync(params) { _, _ -> }
+    }
+
     private fun restorePurchases() {
         billingClient.queryPurchasesAsync(
             QueryPurchasesParams.newBuilder()
