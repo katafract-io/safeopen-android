@@ -1,0 +1,149 @@
+name: Screenshots
+
+# Captures Compose-rendered screenshots on emulator AVDs (phone + 7" + 10"
+# tablet) and pushes them to the Play Console store listing.
+#
+# Runs on the Android self-hosted runner on chronos-androidbuilder which
+# already has the SDK + AVDs + ~/scripts/run_screenshots.sh + ~/play_venv.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'app/src/main/java/**/ui/**'
+      - 'app/src/main/java/**/MainActivity.kt'
+      - 'app/src/androidTest/**/ScreenshotTest.kt'
+      - 'fastlane/metadata/android/en-US/images/**'
+      - '.github/workflows/screenshots.yml'
+
+concurrency:
+  group: screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    runs-on: [self-hosted, Linux, X64, android-build]
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        avd: [phone_pixel7, tablet_7in, tablet_10in]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Notify Matrix — capture started
+        if: always()
+        run: |
+          PAYLOAD="{\"text\":\"📸 katafract-io/safeopen-android screenshot capture (${{ matrix.avd }}) #${{ github.run_number }} started\"}"
+          curl -s -X POST https://webhooks.katafract.io/webhook/ci \
+            -H "Content-Type: application/json" \
+            -H "X-Webhook-Secret: ${{ secrets.MATRIX_WEBHOOK_SECRET }}" \
+            -d "$PAYLOAD" || true
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Run screenshot tests on ${{ matrix.avd }}
+        run: |
+          ~/scripts/run_screenshots.sh "$GITHUB_WORKSPACE" "${{ matrix.avd }}" \
+            "com.katafract.safeopen.ScreenshotTest"
+
+      - name: Upload PNGs as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ matrix.avd }}
+          path: fastlane/metadata/android/en-US/images/**/*.png
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Notify Matrix — capture FAILED
+        if: failure()
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          PAYLOAD="{\"text\":\"🔴 katafract-io/safeopen-android screenshot capture (${{ matrix.avd }}) FAILED — $RUN_URL\"}"
+          curl -s -X POST https://webhooks.katafract.io/webhook/ci \
+            -H "Content-Type: application/json" \
+            -H "X-Webhook-Secret: ${{ secrets.MATRIX_WEBHOOK_SECRET }}" \
+            -d "$PAYLOAD" || true
+
+  publish:
+    needs: capture
+    runs-on: [self-hosted, Linux, X64, android-build]
+    timeout-minutes: 10
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all screenshot artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: screenshots-*
+          merge-multiple: true
+
+      - name: Stage screenshots into fastlane metadata
+        run: |
+          mkdir -p fastlane/metadata/android/en-US/images
+          if [ -d artifacts ]; then
+            cp -r artifacts/* fastlane/metadata/android/en-US/images/ 2>/dev/null || true
+          fi
+          find fastlane/metadata/android/en-US/images -name "*.png" | sort
+
+      - name: Fetch Play service account
+        env:
+          INFISICAL_CLIENT_ID:     ${{ secrets.INFISICAL_CLIENT_ID }}
+          INFISICAL_CLIENT_SECRET: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+        run: |
+          set -e
+          TOKEN=$(curl -sS --fail -X POST https://secrets.katafract.io/api/v1/auth/universal-auth/login \
+            -H "Content-Type: application/json" \
+            -d "{\"clientId\":\"$INFISICAL_CLIENT_ID\",\"clientSecret\":\"$INFISICAL_CLIENT_SECRET\"}" \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["accessToken"])')
+          curl -sS --fail \
+            "https://secrets.katafract.io/api/v3/secrets/raw?workspaceId=f51b990a-63ba-4ce0-a388-cb9aadc42383&environment=prod&secretPath=/" \
+            -H "Authorization: Bearer $TOKEN" > /tmp/root_secrets.json
+          python3 -c "import json; print([s['secretValue'] for s in json.load(open('/tmp/root_secrets.json'))['secrets'] if s['secretKey']=='PLAY_SERVICE_ACCOUNT_KEY'][0])" > /tmp/play_sa.json
+          rm -f /tmp/root_secrets.json
+          test -s /tmp/play_sa.json
+
+      - name: Upload screenshots to Play Console
+        run: |
+          ~/play_venv/bin/python ~/scripts/upload_play_screenshots.py \
+            com.katafract.safeopen \
+            fastlane/metadata/android/en-US \
+            --service-account /tmp/play_sa.json \
+            --language en-US
+
+      - name: Clean up secrets
+        if: always()
+        run: rm -f /tmp/play_sa.json
+
+      - name: Notify Matrix — published
+        if: success()
+        run: |
+          PAYLOAD="{\"text\":\"✅ katafract-io/safeopen-android screenshots published to Play Console (run #${{ github.run_number }})\"}"
+          curl -s -X POST https://webhooks.katafract.io/webhook/deploys \
+            -H "Content-Type: application/json" \
+            -H "X-Webhook-Secret: ${{ secrets.MATRIX_WEBHOOK_SECRET }}" \
+            -d "$PAYLOAD" || true
+
+      - name: Notify Matrix — publish FAILED
+        if: failure()
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          PAYLOAD="{\"text\":\"🔴 katafract-io/safeopen-android screenshot publish FAILED — $RUN_URL\"}"
+          for ROOM in deploys alerts; do
+            curl -s -X POST "https://webhooks.katafract.io/webhook/$ROOM" \
+              -H "Content-Type: application/json" \
+              -H "X-Webhook-Secret: ${{ secrets.MATRIX_WEBHOOK_SECRET }}" \
+              -d "$PAYLOAD" || true
+          done
