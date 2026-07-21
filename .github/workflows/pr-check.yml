@@ -1,0 +1,19 @@
+name: PR check (compile gate)
+
+on:
+  pull_request:
+
+concurrency:
+  group: pr-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    name: Android compile (compile gate)
+    runs-on: [self-hosted, Linux, X64, android-build]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gradle config parse (fast gate)
+        run: |
+          chmod +x gradlew
+          ./gradlew help
