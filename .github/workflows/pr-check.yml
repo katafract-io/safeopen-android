@@ -12,7 +12,7 @@ jobs:
     name: Android compile (compile gate)
     runs-on: [self-hosted, Linux, X64, android-build]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Gradle config parse (fast gate)
         run: |
           chmod +x gradlew
